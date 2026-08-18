@@ -67,7 +67,7 @@ class TravelState(TypedDict):
     flight_results: str
     hotel_results: str
     itinerary: str
-    llm_calls: int
+    llm_calls: Annotated[int, operator.add]
 
 
 # =========================
@@ -83,7 +83,7 @@ def flight_agent(state: TravelState):
         "messages": [
             AIMessage(content="Flight results fetched.")
         ],
-        "llm_calls": state.get("llm_calls", 0) + 1
+        "llm_calls": 1
     }
 
 
@@ -101,21 +101,21 @@ def hotel_agent(state: TravelState):
         "messages": [
             AIMessage(content="Hotel information fetched.")
         ],
-        "llm_calls": state.get("llm_calls", 0) + 1
+        "llm_calls": 1
     }
 
 
 
 
 # =========================
-# Itinerary Agent
+# Planner Agent (itinerary + final formatting in one call)
 # =========================
 
-def itinerary_agent(state: TravelState):
+def planner_agent(state: TravelState):
     prompt = f"""
-Create a complete travel itinerary.
+Create the final travel response for the user in one pass.
 
-User Query:
+User Request:
 {state['user_query']}
 
 Flight Results:
@@ -124,43 +124,7 @@ Flight Results:
 Hotel Results:
 {state['hotel_results']}
 
-Make the itinerary practical, budget-aware, and easy to follow.
-"""
-
-    response = llm.invoke([
-        SystemMessage(content="You are an expert travel planner."),
-        HumanMessage(content=prompt)
-    ])
-
-    return {
-        "itinerary": response.content,
-        "messages": [response],
-        "llm_calls": state.get("llm_calls", 0) + 1
-    }
-
-
-
-# =========================
-# Final Response Agent
-# =========================
-
-def final_agent(state: TravelState):
-    final_prompt = f"""
-Generate the final travel response for the user.
-
-User Request:
-{state['user_query']}
-
-Flights:
-{state['flight_results']}
-
-Hotels:
-{state['hotel_results']}
-
-Itinerary:
-{state['itinerary']}
-
-Format the final answer beautifully using these sections:
+Format the answer beautifully using these sections:
 
 1. Trip Summary
 2. Flight Information
@@ -170,19 +134,20 @@ Format the final answer beautifully using these sections:
 6. Final Recommendations
 
 Important:
-- Be clear and practical.
+- Be clear, practical, and budget-aware.
 - Mention that live flight API may not provide ticket prices if pricing is unavailable.
 - Keep the response useful for real travel planning.
 """
 
     response = llm.invoke([
-        SystemMessage(content="You are a professional AI travel booking assistant."),
-        HumanMessage(content=final_prompt)
+        SystemMessage(content="You are a professional AI travel booking assistant and expert travel planner."),
+        HumanMessage(content=prompt)
     ])
 
     return {
+        "itinerary": response.content,
         "messages": [response],
-        "llm_calls": state.get("llm_calls", 0) + 1
+        "llm_calls": 1
     }
 
 
@@ -194,14 +159,13 @@ graph = StateGraph(TravelState)
 
 graph.add_node("flight_agent", flight_agent)
 graph.add_node("hotel_agent", hotel_agent)
-graph.add_node("itinerary_agent", itinerary_agent)
-graph.add_node("final_agent", final_agent)
+graph.add_node("planner_agent", planner_agent)
 
 graph.add_edge(START, "flight_agent")
-graph.add_edge("flight_agent", "hotel_agent")
-graph.add_edge("hotel_agent", "itinerary_agent")
-graph.add_edge("itinerary_agent", "final_agent")
-graph.add_edge("final_agent", END)
+graph.add_edge(START, "hotel_agent")
+graph.add_edge("flight_agent", "planner_agent")
+graph.add_edge("hotel_agent", "planner_agent")
+graph.add_edge("planner_agent", END)
 
 
 # =========================
