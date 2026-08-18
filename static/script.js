@@ -138,7 +138,6 @@ function downloadPDF() {
 
     downloadBtn.textContent = "Preparing PDF...";
     downloadBtn.disabled = true;
-    pdfContent.classList.add("pdf-export");
 
     const options = {
         margin: 0.5,
@@ -169,12 +168,10 @@ function downloadPDF() {
         .then(() => {
             downloadBtn.textContent = oldText;
             downloadBtn.disabled = false;
-            pdfContent.classList.remove("pdf-export");
         })
         .catch(() => {
             downloadBtn.textContent = oldText;
             downloadBtn.disabled = false;
-            pdfContent.classList.remove("pdf-export");
             showError("Could not download PDF.");
         });
 }
